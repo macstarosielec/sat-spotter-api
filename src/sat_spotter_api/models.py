@@ -1,4 +1,8 @@
+from dataclasses import dataclass
+
 from pydantic import BaseModel
+from skyfield.api import EarthSatellite, Time
+from skyfield.toposlib import GeographicPosition
 
 
 class SatelliteInfo(BaseModel):
@@ -45,3 +49,16 @@ class SatelliteSearchResult(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+@dataclass
+class SatellitePass:
+    name: str
+    rise: Time
+    culminate: Time
+    set: Time
+    elevation: float
+    rise_azimuth: float
+    set_azimuth: float
+    is_visible: bool
+    satellite: EarthSatellite
+    location: GeographicPosition
