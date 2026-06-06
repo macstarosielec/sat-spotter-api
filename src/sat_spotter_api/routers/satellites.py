@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
+from sat_spotter_api.config import HTTP_TIMEOUT
 from sat_spotter_api.core.catalog import load_catalog
 from sat_spotter_api.core.tle import classify_orbit, fetch_tle, orbital_params, parse_tle
 from sat_spotter_api.models import CatalogSatellite, SatelliteInfo, SatelliteSearchResult
@@ -19,7 +20,7 @@ def get_catalog():
 def search_satellites(name: str = Query(..., min_length=2)):
     url = f"https://celestrak.org/NORAD/elements/gp.php?NAME={name}&FORMAT=TLE"
     try:
-        response = httpx.get(url)
+        response = httpx.get(url, timeout=HTTP_TIMEOUT)
         response.raise_for_status()
     except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="Celestrak API unavailable")

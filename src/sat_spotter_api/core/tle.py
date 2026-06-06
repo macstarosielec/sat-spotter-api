@@ -3,7 +3,7 @@ import time
 import httpx
 from skyfield.api import EarthSatellite, load
 
-from sat_spotter_api.config import BASE_CACHE_DIR, DEFAULT_CACHE_DURATION
+from sat_spotter_api.config import BASE_CACHE_DIR, DEFAULT_CACHE_DURATION, HTTP_TIMEOUT
 
 
 def read_cache(norad_id: int) -> str | None:
@@ -28,7 +28,7 @@ def fetch_tle(norad_id: int) -> str | None:
 
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad_id}&FORMAT=TLE"
     try:
-        response = httpx.get(url)
+        response = httpx.get(url, timeout=HTTP_TIMEOUT)
         response.raise_for_status()
         write_cache(norad_id, response.text)
         return response.text
