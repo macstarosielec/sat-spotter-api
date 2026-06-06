@@ -1,9 +1,10 @@
 import time
 
 import httpx
-from skyfield.api import EarthSatellite, load
+from skyfield.api import EarthSatellite
 
-from sat_spotter_api.config import BASE_CACHE_DIR, DEFAULT_CACHE_DURATION
+from sat_spotter_api.config import BASE_CACHE_DIR, DEFAULT_CACHE_DURATION, HTTP_TIMEOUT
+from sat_spotter_api.core.loaders import get_timescale
 
 
 def read_cache(norad_id: int) -> str | None:
@@ -28,7 +29,7 @@ def fetch_tle(norad_id: int) -> str | None:
 
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad_id}&FORMAT=TLE"
     try:
-        response = httpx.get(url)
+        response = httpx.get(url, timeout=HTTP_TIMEOUT, follow_redirects=False)
         response.raise_for_status()
         write_cache(norad_id, response.text)
         return response.text
@@ -48,5 +49,34 @@ def parse_tle(tle_data: str | None) -> dict | None:
 def load_satellite(tle: dict | None) -> EarthSatellite | None:
     if tle is None:
         return None
-    ts = load.timescale()
-    return EarthSatellite(tle["line1"], tle["line2"], tle["name"], ts)
+    return EarthSatellite(tle["line1"], tle["line2"], tle["name"], get_timescale())
+
+
+def orbital_params(line2: str) -> tuple[float, float]:
+    """Parse inclination (degrees) and orbital period (minutes) from TLE line 2.
+
+    Uses the fixed-width TLE columns rather than whitespace splitting: the mean
+    motion field (cols 53-63) abuts the revolution number with no separator, so
+    splitting would fold the revolution count into the parsed value.
+    """
+    inclination = float(line2[8:16])
+    mean_motion = float(line2[52:63])
+    period_minutes = 1440.0 / mean_motion
+    return inclination, period_minutes
+
+
+def classify_orbit(inclination: float, period_minutes: float) -> str:
+    """Derive orbit type (LEO/MEO/GEO/SSO/Other) from period and inclination."""
+    if period_minutes < 128:
+        orbit_type = "LEO"
+    elif period_minutes < 800:
+        orbit_type = "MEO"
+    elif 1400 < period_minutes < 1500:
+        orbit_type = "GEO"
+    else:
+        orbit_type = "Other"
+
+    # Sun-synchronous: LEO + inclination 96-105°
+    if orbit_type == "LEO" and 96 <= inclination <= 105:
+        orbit_type = "SSO"
+    return orbit_type

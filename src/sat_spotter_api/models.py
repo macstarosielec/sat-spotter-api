@@ -1,4 +1,8 @@
+from dataclasses import dataclass
+from typing import Literal
+
 from pydantic import BaseModel
+from skyfield.api import Time
 
 
 class SatelliteInfo(BaseModel):
@@ -41,7 +45,26 @@ class PassTrajectory(BaseModel):
 class SatelliteSearchResult(BaseModel):
     norad_id: int
     name: str
+    orbit_type: str
+
+
+class CatalogSatellite(BaseModel):
+    norad_id: int
+    name: str
 
 
 class HealthResponse(BaseModel):
-    status: str
+    status: Literal["ok"]
+
+
+@dataclass
+class SatellitePass:
+    name: str
+    norad_id: int
+    rise: Time
+    culminate: Time
+    set: Time
+    elevation: float
+    rise_azimuth: float
+    set_azimuth: float
+    is_visible: bool
