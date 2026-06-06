@@ -1,6 +1,9 @@
-from skyfield.api import EarthSatellite, load
+from datetime import datetime, timezone
+
+from skyfield.api import EarthSatellite
 from skyfield.toposlib import GeographicPosition
 
+from sat_spotter_api.core.loaders import get_timescale
 from sat_spotter_api.core.location import observer
 from sat_spotter_api.core.predict import find_passes
 from sat_spotter_api.core.tle import fetch_tle, load_satellite, parse_tle
@@ -16,30 +19,47 @@ def degrees_to_compass(deg: float) -> str:
 
 
 def group_passes(
-    times, satellite: EarthSatellite, location: GeographicPosition, min_elevation: float
+    times, events, satellite: EarthSatellite, location: GeographicPosition, min_elevation: float
 ) -> list[SatellitePass]:
+    """Assemble complete rise -> culminate -> set passes from the event stream.
+
+    Skyfield emits events as a flat sequence (0=rise, 1=culminate, 2=set). The
+    window can start or end mid-pass, so we track state and only emit a pass
+    once a full rise/culminate/set triple has been observed; partial passes
+    clipped by the window edges are dropped.
+    """
     passes_list = []
-    for i in range(0, len(times) - 2, 3):
-        difference = satellite - location
-        topocentric = difference.at(times[i + 1])
-        alt, _, _ = topocentric.altaz()
-        rise_topo = difference.at(times[i])
-        _, rise_az, _ = rise_topo.altaz()
-        set_topo = difference.at(times[i + 2])
-        _, set_az, _ = set_topo.altaz()
-        if alt.degrees > min_elevation:
-            passes_list.append(SatellitePass(
-                name=satellite.name,
-                rise=times[i],
-                culminate=times[i + 1],
-                set=times[i + 2],
-                elevation=alt.degrees,
-                rise_azimuth=rise_az.degrees,
-                set_azimuth=set_az.degrees,
-                is_visible=is_visible(satellite, location, times[i + 1]),
-                satellite=satellite,
-                location=location,
-            ))
+    norad_id = int(satellite.model.satnum)
+    difference = satellite - location
+    rise_time = culminate_time = rise_azimuth = None
+
+    for time, event in zip(times, events):
+        if event == 0:  # rise
+            rise_time = time
+            _, az, _ = difference.at(time).altaz()
+            rise_azimuth = az.degrees
+            culminate_time = None
+        elif event == 1:  # culmination
+            culminate_time = time
+        elif event == 2:  # set
+            if rise_time is None or culminate_time is None:
+                rise_time = culminate_time = None
+                continue
+            alt, _, _ = difference.at(culminate_time).altaz()
+            _, set_az, _ = difference.at(time).altaz()
+            if alt.degrees > min_elevation:
+                passes_list.append(SatellitePass(
+                    name=satellite.name,
+                    norad_id=norad_id,
+                    rise=rise_time,
+                    culminate=culminate_time,
+                    set=time,
+                    elevation=alt.degrees,
+                    rise_azimuth=rise_azimuth,
+                    set_azimuth=set_az.degrees,
+                    is_visible=is_visible(satellite, location, culminate_time),
+                ))
+            rise_time = culminate_time = None
     return passes_list
 
 
@@ -52,8 +72,8 @@ def compute_all_passes(
         satellite = load_satellite(parse_tle(fetch_tle(norad_id)))
         if satellite is None:
             continue
-        times, _ = find_passes(satellite, location, hours)
-        satellite_passes = group_passes(times, satellite, location, min_elevation)
+        times, events = find_passes(satellite, location, hours)
+        satellite_passes = group_passes(times, events, satellite, location, min_elevation)
         all_passes.extend(satellite_passes)
     all_passes.sort(key=lambda p: p.rise.tt)
     return all_passes
@@ -83,20 +103,22 @@ def pass_to_response(index: int, norad_id: int, pass_data: SatellitePass) -> Pas
 
 
 def compute_trajectory(
-    lat: float, lon: float, norad_id: int, rise_time: str, set_time: str
+    lat: float, lon: float, norad_id: int, rise_time: datetime, set_time: datetime
 ) -> PassTrajectory | None:
     satellite = load_satellite(parse_tle(fetch_tle(norad_id)))
     if satellite is None:
         return None
 
+    # Skyfield requires timezone-aware datetimes; assume UTC when none is given.
+    if rise_time.tzinfo is None:
+        rise_time = rise_time.replace(tzinfo=timezone.utc)
+    if set_time.tzinfo is None:
+        set_time = set_time.replace(tzinfo=timezone.utc)
+
     location = observer(lat, lon)
-    ts = load.timescale()
-    t_rise = ts.from_datetime(
-        __import__("datetime").datetime.fromisoformat(rise_time)
-    )
-    t_set = ts.from_datetime(
-        __import__("datetime").datetime.fromisoformat(set_time)
-    )
+    ts = get_timescale()
+    t_rise = ts.from_datetime(rise_time)
+    t_set = ts.from_datetime(set_time)
 
     time_array = ts.linspace(t_rise, t_set, 50)
     difference = satellite - location

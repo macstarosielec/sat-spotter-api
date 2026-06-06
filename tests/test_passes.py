@@ -14,8 +14,8 @@ TRAJECTORY_PARAMS = {
 
 
 def _fake_pass(satnum: int = 25544) -> SimpleNamespace:
-    """Stand-in for a SatellitePass: the router only reads .satellite.model.satnum."""
-    return SimpleNamespace(satellite=SimpleNamespace(model=SimpleNamespace(satnum=satnum)))
+    """Stand-in for a SatellitePass: the router only reads .norad_id."""
+    return SimpleNamespace(norad_id=satnum)
 
 
 def _prediction(index: int, norad_id: int, *, is_visible: bool) -> PassPrediction:
@@ -96,8 +96,23 @@ def test_get_passes_invalid_norad_id_returns_400(client):
     assert response.status_code == 400
 
 
+def test_get_passes_too_many_ids_returns_400(client):
+    many = ",".join(str(n) for n in range(60))
+    response = client.get(
+        "/passes", params={"lat": 52.0, "lon": 21.0, "norad_ids": many}
+    )
+    assert response.status_code == 400
+
+
 def test_get_passes_missing_lat_returns_422(client):
     response = client.get("/passes", params={"lon": 21.0, "norad_ids": "25544"})
+    assert response.status_code == 422
+
+
+def test_get_passes_lat_out_of_range_returns_422(client):
+    response = client.get(
+        "/passes", params={"lat": 999.0, "lon": 21.0, "norad_ids": "25544"}
+    )
     assert response.status_code == 422
 
 
@@ -109,7 +124,7 @@ def test_get_trajectory_returns_points(client, mock_trajectory):
             points=[TrajectoryPoint(azimuth_deg=215.4, altitude_deg=0.0)],
         )
     )
-    response = client.get("/passes/0/trajectory", params=TRAJECTORY_PARAMS)
+    response = client.get("/passes/trajectory", params=TRAJECTORY_PARAMS)
     assert response.status_code == 200
     body = response.json()
     assert body["norad_id"] == 25544
@@ -118,11 +133,26 @@ def test_get_trajectory_returns_points(client, mock_trajectory):
 
 def test_get_trajectory_not_found_returns_404(client, mock_trajectory):
     mock_trajectory(None)
-    response = client.get("/passes/0/trajectory", params=TRAJECTORY_PARAMS)
+    response = client.get("/passes/trajectory", params=TRAJECTORY_PARAMS)
     assert response.status_code == 404
 
 
-def test_get_trajectory_missing_param_returns_422(client, mock_trajectory):
-    mock_trajectory(None)
-    response = client.get("/passes/0/trajectory", params={"lat": 52.0, "lon": 21.0})
+def test_get_trajectory_invalid_datetime_returns_422(client):
+    params = {**TRAJECTORY_PARAMS, "rise_time": "not-a-date"}
+    response = client.get("/passes/trajectory", params=params)
+    assert response.status_code == 422
+
+
+def test_get_trajectory_rise_after_set_returns_400(client):
+    params = {
+        **TRAJECTORY_PARAMS,
+        "rise_time": "2026-06-06T18:10:00+00:00",
+        "set_time": "2026-06-06T18:00:00+00:00",
+    }
+    response = client.get("/passes/trajectory", params=params)
+    assert response.status_code == 400
+
+
+def test_get_trajectory_missing_param_returns_422(client):
+    response = client.get("/passes/trajectory", params={"lat": 52.0, "lon": 21.0})
     assert response.status_code == 422

@@ -8,8 +8,9 @@ app = FastAPI(title="Sat-Spotter API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
+    # MVP: open during development; restrict to the app origin before production.
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET"],  # API is read-only
     allow_headers=["*"],
 )
 

@@ -1,15 +1,9 @@
-from functools import lru_cache
-
-from skyfield.api import EarthSatellite, Time, load
+from skyfield.api import EarthSatellite, Time
 from skyfield.toposlib import GeographicPosition
 
+from sat_spotter_api.core.loaders import get_ephemeris
+
 TWILIGHT = -6.0
-
-
-@lru_cache(maxsize=1)
-def get_ephemeris():
-    """Load the de421.bsp ephemeris once and reuse it across calls."""
-    return load('de421.bsp')
 
 
 def is_sunlit(satellite: EarthSatellite, time: Time, ephemeris) -> bool:

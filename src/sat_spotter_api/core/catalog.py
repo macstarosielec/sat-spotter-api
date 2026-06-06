@@ -11,4 +11,7 @@ def load_catalog() -> list[dict]:
     """
     if not CATALOG_PATH.exists():
         return []
-    return json.loads(CATALOG_PATH.read_text())
+    try:
+        return json.loads(CATALOG_PATH.read_text())
+    except json.JSONDecodeError:
+        return []
