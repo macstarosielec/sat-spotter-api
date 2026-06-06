@@ -8,7 +8,9 @@ def is_sunlit(satellite: EarthSatellite, time: Time, ephemeris) -> bool:
     return satellite.at(time).is_sunlit(ephemeris)
 
 
-def is_dark_enough(location: GeographicPosition, time: Time, ephemeris, sun_limit: float = TWILIGHT) -> bool:
+def is_dark_enough(
+    location: GeographicPosition, time: Time, ephemeris, sun_limit: float = TWILIGHT
+) -> bool:
     earth = ephemeris['earth']
     sun = ephemeris['sun']
     observer = earth + location

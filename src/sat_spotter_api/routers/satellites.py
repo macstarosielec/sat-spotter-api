@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
-from sat_spotter_api.core.tle import fetch_tle, parse_tle
+from sat_spotter_api.core.tle import classify_orbit, fetch_tle, orbital_params, parse_tle
 from sat_spotter_api.models import SatelliteInfo, SatelliteSearchResult
 
 router = APIRouter(prefix="/satellites", tags=["satellites"])
@@ -27,7 +27,11 @@ def search_satellites(name: str = Query(..., min_length=2)):
     for i in range(0, len(lines) - 2, 3):
         sat_name = lines[i].strip()
         norad_id = int(lines[i + 1].split()[1].rstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
-        results.append(SatelliteSearchResult(norad_id=norad_id, name=sat_name))
+        inclination, period_minutes = orbital_params(lines[i + 2])
+        orbit_type = classify_orbit(inclination, period_minutes)
+        results.append(
+            SatelliteSearchResult(norad_id=norad_id, name=sat_name, orbit_type=orbit_type)
+        )
     return results
 
 
@@ -38,23 +42,8 @@ def get_satellite(norad_id: int):
     if tle is None:
         raise HTTPException(status_code=404, detail="Satellite not found")
 
-    line2_parts = tle["line2"].split()
-    inclination = float(line2_parts[2])
-    mean_motion = float(line2_parts[7])
-    period_minutes = 1440.0 / mean_motion
-
-    if period_minutes < 128:
-        orbit_type = "LEO"
-    elif period_minutes < 800:
-        orbit_type = "MEO"
-    elif 1400 < period_minutes < 1500:
-        orbit_type = "GEO"
-    else:
-        orbit_type = "Other"
-
-    # Check for sun-synchronous: LEO + inclination 96-105°
-    if orbit_type == "LEO" and 96 <= inclination <= 105:
-        orbit_type = "SSO"
+    inclination, period_minutes = orbital_params(tle["line2"])
+    orbit_type = classify_orbit(inclination, period_minutes)
 
     epoch_year = int(tle["line1"][18:20])
     epoch_day = float(tle["line1"][20:32])

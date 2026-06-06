@@ -45,6 +45,7 @@ class PassTrajectory(BaseModel):
 class SatelliteSearchResult(BaseModel):
     norad_id: int
     name: str
+    orbit_type: str
 
 
 class HealthResponse(BaseModel):

@@ -1,4 +1,3 @@
-import numpy as np
 from skyfield.api import EarthSatellite, load
 from skyfield.toposlib import GeographicPosition
 
@@ -30,10 +29,10 @@ def group_passes(
         _, set_az, _ = set_topo.altaz()
         if alt.degrees > min_elevation:
             passes_list.append(SatellitePass(
-                name=satellite.name,                                                   
-                rise=times[i],                                                         
-                culminate=times[i + 1],                                                
-                set=times[i + 2],                         
+                name=satellite.name,
+                rise=times[i],
+                culminate=times[i + 1],
+                set=times[i + 2],
                 elevation=alt.degrees,
                 rise_azimuth=rise_az.degrees,
                 set_azimuth=set_az.degrees,

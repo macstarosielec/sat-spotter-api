@@ -50,3 +50,29 @@ def load_satellite(tle: dict | None) -> EarthSatellite | None:
         return None
     ts = load.timescale()
     return EarthSatellite(tle["line1"], tle["line2"], tle["name"], ts)
+
+
+def orbital_params(line2: str) -> tuple[float, float]:
+    """Parse inclination (degrees) and orbital period (minutes) from TLE line 2."""
+    parts = line2.split()
+    inclination = float(parts[2])
+    mean_motion = float(parts[7])
+    period_minutes = 1440.0 / mean_motion
+    return inclination, period_minutes
+
+
+def classify_orbit(inclination: float, period_minutes: float) -> str:
+    """Derive orbit type (LEO/MEO/GEO/SSO/Other) from period and inclination."""
+    if period_minutes < 128:
+        orbit_type = "LEO"
+    elif period_minutes < 800:
+        orbit_type = "MEO"
+    elif 1400 < period_minutes < 1500:
+        orbit_type = "GEO"
+    else:
+        orbit_type = "Other"
+
+    # Sun-synchronous: LEO + inclination 96-105°
+    if orbit_type == "LEO" and 96 <= inclination <= 105:
+        orbit_type = "SSO"
+    return orbit_type
