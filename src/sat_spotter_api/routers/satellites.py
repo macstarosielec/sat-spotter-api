@@ -3,10 +3,16 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
+from sat_spotter_api.core.catalog import load_catalog
 from sat_spotter_api.core.tle import classify_orbit, fetch_tle, orbital_params, parse_tle
-from sat_spotter_api.models import SatelliteInfo, SatelliteSearchResult
+from sat_spotter_api.models import CatalogSatellite, SatelliteInfo, SatelliteSearchResult
 
 router = APIRouter(prefix="/satellites", tags=["satellites"])
+
+
+@router.get("/catalog", response_model=list[CatalogSatellite])
+def get_catalog():
+    return load_catalog()
 
 
 @router.get("/search", response_model=list[SatelliteSearchResult])

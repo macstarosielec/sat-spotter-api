@@ -1,4 +1,6 @@
 from pathlib import Path
 
-BASE_CACHE_DIR = Path(__file__).parent.parent.parent / "data" / "cache"
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+BASE_CACHE_DIR = DATA_DIR / "cache"
+CATALOG_PATH = DATA_DIR / "catalog.json"
 DEFAULT_CACHE_DURATION = 4 * 3600

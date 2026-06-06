@@ -48,6 +48,11 @@ class SatelliteSearchResult(BaseModel):
     orbit_type: str
 
 
+class CatalogSatellite(BaseModel):
+    norad_id: int
+    name: str
+
+
 class HealthResponse(BaseModel):
     status: str
 
